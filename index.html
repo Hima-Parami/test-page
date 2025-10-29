@@ -538,35 +538,15 @@
 
             console.log('Setting up canvas event listeners...');
 
-            // Mouse events
-            canvas.addEventListener('mousedown', handleStart);
-            canvas.addEventListener('mousemove', handleMove);
-            canvas.addEventListener('mouseup', handleEnd);
-            canvas.addEventListener('mouseleave', handleEnd);
+            // Remove duplicate event listeners and use only Pointer Events
+            // which handle mouse, touch, and pen inputs consistently
+            canvas.addEventListener('pointerdown', handleStart);
+            canvas.addEventListener('pointermove', handleMove);
+            canvas.addEventListener('pointerup', handleEnd);
+            canvas.addEventListener('pointerleave', handleEnd);
 
-            // Touch events
-            canvas.addEventListener('touchstart', handleStart);
-            canvas.addEventListener('touchmove', handleMove);
-            canvas.addEventListener('touchend', handleEnd);
-
-            // Prevent scrolling when touching the canvas
-            document.body.addEventListener('touchstart', function(e) {
-                if (e.target === canvas) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
-
-            document.body.addEventListener('touchend', function(e) {
-                if (e.target === canvas) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
-
-            document.body.addEventListener('touchmove', function(e) {
-                if (e.target === canvas) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
+            // Set CSS to improve pointer events
+            canvas.style.touchAction = 'none';
 
             console.log('Canvas event listeners set up');
         }
@@ -578,29 +558,42 @@
 
             let clientX, clientY;
             
-            if (e.touches && e.touches.length > 0) {
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
-            } else {
-                clientX = e.clientX;
-                clientY = e.clientY;
+            // Use pointer events for consistent handling
+            clientX = e.clientX;
+            clientY = e.clientY;
+
+            // Get pressure information from the event
+            let pressure = 0.5; // Default value
+            
+            // Try to get pressure from PointerEvent (most modern devices)
+            if (e.pointerType === 'pen' || e.pointerType === 'touch') {
+                pressure = e.pressure || 0.5;
+            }
+            // For mouse events, we can simulate pressure based on button state
+            else if (e.pointerType === 'mouse') {
+                pressure = 0.7; // Simulate pressure for mouse
             }
 
             return {
                 x: (clientX - rect.left) * scaleX,
                 y: (clientY - rect.top) * scaleY,
                 timestamp: Date.now(),
-                pressure: e.pressure || 0.5
+                pressure: pressure,
+                pointerType: e.pointerType || 'mouse'
             };
         }
 
         function handleStart(e) {
+            // Only process if we're not already drawing
+            if (isDrawing) return;
+            
             e.preventDefault();
             console.log('Drawing started');
             
             isDrawing = true;
             if (!startTime) startTime = Date.now();
             
+            // Only increment stroke count once per actual stroke
             strokeCount++;
             currentStroke = [];
             
@@ -613,6 +606,10 @@
             
             ctx.beginPath();
             ctx.moveTo(point.x, point.y);
+            
+            // Update line width based on pressure
+            ctx.lineWidth = 2 + (point.pressure * 4);
+            
             updateStats();
         }
 
@@ -627,6 +624,9 @@
                 type: 'stroke_continue',
                 ...point
             });
+            
+            // Update line width based on pressure
+            ctx.lineWidth = 2 + (point.pressure * 4);
             
             ctx.lineTo(point.x, point.y);
             ctx.stroke();
@@ -662,6 +662,9 @@
             strokeCount = 0;
             startTime = null;
             updateStats();
+            
+            // Reset line width
+            ctx.lineWidth = 3;
             
             // Redraw template if needed
             if (currentMode === 'shapes' || currentMode === 'patterns') {
@@ -1260,5 +1263,4 @@
         console.log('Script loaded');
     </script>
 </body>
-
 </html>
